@@ -32,7 +32,7 @@ contract lotteryBot {
     }
 
     function killCasino() public {
-        while(address(this).balance < 10) {
+        while(address(casino).balance > 0) {
             getTicket();
             playLottery();
             reFinance();
@@ -43,7 +43,6 @@ contract lotteryBot {
         (bool success,) = owner.call{value: address(this).balance}("");
         require(success, "Not paid");
     }
-
 
 }
 
