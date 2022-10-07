@@ -15,8 +15,9 @@ contract scratchOff {
         owner = payable(0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2);
         tickets = 0;
     }
-
-    function buyTicket() public payable{
+    receive() external payable{}
+    
+    function buyTicket() public payable {
         require(msg.value == 2 ether, "not enough ether");
         require(lotteryFunds >= 2 ether, "casino closed for lack of funding");
         tickets++;
@@ -30,7 +31,7 @@ contract scratchOff {
             tickets--;
     }
 
-    function takePayout() public payable{
+    function takePayout() public {
         (bool success,) = msg.sender.call{value: playerbalance}("");
         require(success, "Not paid");
         playerbalance = 0;
@@ -42,7 +43,7 @@ contract scratchOff {
         lotteryFunds = address(this).balance - playerbalance;
     }
 
-    function takeProfits(uint amount) public payable{
+    function takeProfits(uint amount) public {
         if(amount >= address(this).balance){
             (bool success,) = owner.call{value: address(this).balance}("");
             require(success, "Not paid");
