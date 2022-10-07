@@ -9,13 +9,16 @@ contract lotteryBot {
 
     constructor(){
         owner = msg.sender;
-        casino = payable(0x1482717Eb2eA8Ecd81d2d8C403CaCF87AcF04927);
         t = scratchoff(casino);
     }
 
     receive() external payable{}
 
     function fundBot() public payable{
+    }
+
+    function setCasino(address _address) public{
+        casino = payable(_address);
     }
 
     function getTicket() public {
