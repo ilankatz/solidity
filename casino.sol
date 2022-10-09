@@ -6,10 +6,8 @@ contract scratchOff {
     uint public lotteryFunds;
     uint public playerFunds;
     address payable owner;
-    //uint public tickets;
     address[] public playerAddresses;
     mapping(address => Player) public players;
-    //address[] public players;
 
     struct Player {
         uint funds;
@@ -21,49 +19,56 @@ contract scratchOff {
         lotteryFunds = address(this).balance;
         owner = payable(msg.sender);
         playerFunds = 0;
-        //tickets = 0;
     }
 
     receive() external payable{}
 
-    function openAccount() public payable {
-        require(msg.value >= .0005 ether, ".0005 ether required to open account");
-        Player memory _player = Player(msg.value - .0005 ether,0);
-        players[msg.sender] = _player;
-        playerAddresses.push(msg.sender);
-        playerFunds += players[msg.sender].funds;
-    }
-
     function fundAccount() public payable {
-        players[msg.sender].funds += msg.value;
-        playerFunds += msg.value;
+        //check if player has an account
+        if(contains(msg.sender)) {
+            //allow players to fund their accounts
+            players[msg.sender].funds += msg.value;
+            playerFunds += msg.value;
+        } else { //create a new account
+            require(msg.value >= .0005 ether, ".0005 ether required to open account");
+            //charge .0005 eth to open an account
+            Player memory _player = Player(msg.value - .0005 ether,0);
+            lotteryFunds += .0005 ether;
+            players[msg.sender] = _player;
+            //add player's address to list of addresses to keep account
+            playerAddresses.push(msg.sender);
+            //add any funds over .0005 eth to total player funds
+            playerFunds += players[msg.sender].funds;
+        }
     }
 
     function buyTicket() public {
+        //remove 2 eth from address account and add a ticket
         require(players[msg.sender].funds >= 2 ether, "add ether to your account");
+        //don't allow a player to buy a ticket if the casino can't afford a payout
         require(lotteryFunds >= 2 ether, "casino closed for lack of funding");
         players[msg.sender].funds -= 2 ether;
         players[msg.sender].tickets++;
     }
 
-    function play(uint num) public {
-        require(players[msg.sender].tickets > 0, "No tickets!");
-        if(num % 2 == 0){
+    function play(int _num) public {
+        require(players[msg.sender].tickets > 0, "No tickets!");  //check if player has a ticket
+        if(oracleNumber(_num) % 2 == 0){
             players[msg.sender].funds += 3 ether;
-            playerFunds += 1 ether;
+            playerFunds += 3 ether;
         } else{
             players[msg.sender].tickets--;
-            playerFunds -= 2 ether;
         }
     }
 
     function takePayout() public {
+        //check if player is owed more money than exists in the casino (shouldn't ever get executed)
         if(players[msg.sender].funds > address(this).balance){
             (bool success,) = msg.sender.call{value: address(this).balance}("");
             require(success, "Not paid");
             playerFunds -= address(this).balance;
             players[msg.sender].funds -= address(this).balance;
-        
+        //pay the player their balance (later add gas fee)
         } else {
             (bool success,) = msg.sender.call{value: players[msg.sender].funds}("");
             require(success, "Not paid");
@@ -72,18 +77,20 @@ contract scratchOff {
         }
     }
 
-    function fundCasino() public payable{
+    function fundCasino() public payable {
+        //allow casino owner to fund the casino
         require(msg.sender == owner, "not owner");
         lotteryFunds += msg.value;
     }
 
     function takeProfits(uint amount) public {
+        //allow casino owner to take money from the casino
         require(msg.sender == owner, "not the owner, buster");
-        if(amount >= address(this).balance){
-            (bool success,) = owner.call{value: address(this).balance}("");
+        if(amount >= address(this).balance - playerFunds) { //Don't allow owner to take funds in player accounts
+            (bool success,) = owner.call{value: address(this).balance - playerFunds}("");
             require(success, "Not paid");
             lotteryFunds = 0;
-        } else{
+        } else {
             (bool success,) = msg.sender.call{value: amount}("");
             require(success, "Not paid");
             lotteryFunds -= amount;
@@ -91,9 +98,30 @@ contract scratchOff {
     }
 
     function closeCasino() public {
+        //give owner all casino profits
         require(msg.sender == owner, "not the owner, buster");
-        (bool success,) = owner.call{value: address(this).balance}("");
+        (bool success,) = owner.call{value: address(this).balance - playerFunds}("");
         require(success, "Not paid");
+        lotteryFunds = 0;
+        //return funds to all players and reimburse players for tickets already purchased
+        for (uint i = 0; i < playerAddresses.length; i++) {
+            (bool _success,) = playerAddresses[i].call{value: players[playerAddresses[i]].funds + players[playerAddresses[i]].tickets * 2 ether}("");
+             require(_success, "Not paid");
+             playerFunds -= players[playerAddresses[i]].funds;
+             players[playerAddresses[i]].funds = 0;
+        }
+    }
+    //check if player already has an account
+    function contains(address _address) private view returns(bool){
+        for(uint i = 0; i < playerAddresses.length; i++){
+            if(playerAddresses[i] == _address) {
+                return true;
+            }
+        }
+        return false;
     }
 
+    function oracleNumber(int _num) private pure returns(int){ //add oracle function here
+        return _num;
+    }
 }
