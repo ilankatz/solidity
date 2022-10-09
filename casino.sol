@@ -3,11 +3,12 @@ pragma solidity ^0.8.0;
 
 contract scratchOff {
 
-    uint public lotteryFunds;
-    uint public playerFunds;
-    address payable owner;
-    address[] public playerAddresses;
-    mapping(address => Player) public players;
+    uint private lotteryFunds;
+    uint private playerFunds;
+    uint private playerTickets;
+    address payable private owner;
+    address[] private playerAddresses;
+    mapping(address => Player) private players;
 
     struct Player {
         uint funds;
@@ -19,6 +20,8 @@ contract scratchOff {
         lotteryFunds = address(this).balance;
         owner = payable(msg.sender);
         playerFunds = 0;
+        playerTickets = 0;
+        lotteryFunds = 0;
     }
 
     receive() external payable{}
@@ -46,18 +49,22 @@ contract scratchOff {
         //remove 2 eth from address account and add a ticket
         require(players[msg.sender].funds >= 2 ether, "add ether to your account");
         //don't allow a player to buy a ticket if the casino can't afford a payout
-        require(lotteryFunds >= 2 ether, "casino closed for lack of funding");
+        require(lotteryFunds >= 2 ether + playerTickets * 2 ether, "casino closed for lack of funding");
         players[msg.sender].funds -= 2 ether;
         players[msg.sender].tickets++;
+        playerTickets++;
     }
 
     function play(int _num) public {
         require(players[msg.sender].tickets > 0, "No tickets!");  //check if player has a ticket
+        lotteryFunds += 2 ether;
+        playerFunds -= 2 ether;
+        playerTickets--;
+        players[msg.sender].tickets--;
         if(oracleNumber(_num) % 2 == 0){
             players[msg.sender].funds += 3 ether;
             playerFunds += 3 ether;
-        } else{
-            players[msg.sender].tickets--;
+            lotteryFunds -= 3 ether;
         }
     }
 
@@ -121,7 +128,36 @@ contract scratchOff {
         return false;
     }
 
+    function getFunds() public view returns(uint) {
+        return players[msg.sender].funds;
+    }
+
+    function getTickets() public view returns(uint){
+        return players[msg.sender].tickets;
+    }
+
+    function getPlayers(address _address) public view returns(Player memory){
+        require(msg.sender == owner, "only the owner can view players");
+        return players[_address];
+    }
+
+    function getPlayerAddresses() public view returns(address[] memory){
+        require(msg.sender == owner, "only the owner can view player addresses");
+        return playerAddresses;
+    }
+
+    function getLotteryFunds() public view returns(uint){
+        require(msg.sender == owner, "only owner can view that");
+        return lotteryFunds/10**14;
+    }
+
+    function getPlayerfunds() public view returns(uint){
+        require(msg.sender == owner, "only owner can view that");
+        return playerFunds/10**14;
+    }
+
     function oracleNumber(int _num) private pure returns(int){ //add oracle function here
         return _num;
     }
+
 }
