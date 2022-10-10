@@ -50,7 +50,7 @@ contract lotteryBot {
 
 
     function killCasino() public {
-        //while(address(casino).balance > 0) {
+        while(address(casino).balance > 1 ether) {
             
             fundBotAccount();
             getTicket();
