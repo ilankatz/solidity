@@ -5,37 +5,54 @@ contract lotteryBot {
 
     address owner;
     address payable casino;
+    bool accountMade;
     scratchoff t;
 
     constructor(){
         owner = msg.sender;
-        t = scratchoff(casino);
+        accountMade = false;
     }
 
     receive() external payable{}
 
-    function fundBot() public payable{
-    }
+    function fundBot() public payable {}
 
-    function setCasino(address _address) public{
+    function setCasino(address _address) public {
         casino = payable(_address);
+        t = scratchoff(casino);
     }
 
-    function getTicket() public {
-        require(address(this).balance >= 2 ether, "not enough in the contract");
-        t.buyTicket{value: 2 ether}();
+    function fundBotAccount() private {
+        if(accountMade == false){
+            require(address(this).balance >= 2.005 ether, "not enough in the contract");
+            t.fundAccount{value: 2.005 ether}();
+            accountMade = true;
+        } else{
+            require(address(this).balance >= 2 ether, "not enough in the contract");
+            t.fundAccount{value: 2 ether}();
+        }
+        
+        //t.fundAccount{value: 2 ether - t.getFunds()}();
     }
 
-    function playLottery() public {
+    function getTicket() private {
+        //t.lotteryFunds >= 1 ether + t.playerTickets * 2 ether;
+        t.buyTicket();
+    }
+
+    function playLottery() private {
         t.play(2);
     }
 
-        function reFinance() public payable {
+    function reFinance() public payable {
         t.takePayout();
     }
 
+
     function killCasino() public {
-        while(address(casino).balance > 0) {
+        //while(address(casino).balance > 0) {
+            
+            fundBotAccount();
             getTicket();
             playLottery();
             reFinance();
@@ -43,6 +60,7 @@ contract lotteryBot {
     }
 
     function retrieveFunds() public {
+        require(msg.sender == owner, "cannot retrieve funds");
         (bool success,) = owner.call{value: address(this).balance}("");
         require(success, "Not paid");
     }
@@ -50,8 +68,10 @@ contract lotteryBot {
 }
 
 abstract contract scratchoff {
-    function buyTicket() public payable virtual;
-    function play(uint num) public virtual;
+    function buyTicket() public virtual;
+    function play(int num) public virtual;
     function takePayout() public virtual;
-
+    function fundAccount() public payable virtual;
+    function getFunds() public view virtual;
+    function getTickets() public view virtual;
 }
