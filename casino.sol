@@ -49,7 +49,7 @@ contract scratchOff {
         //remove 2 eth from address account and add a ticket
         require(players[msg.sender].funds >= 2 ether, "add ether to your account");
         //don't allow a player to buy a ticket if the casino can't afford a payout
-        require(lotteryFunds >= 2 ether + playerTickets * 2 ether, "casino closed for lack of funding");
+        require(lotteryFunds >= 1 ether + playerTickets * 1 ether, "casino closed for lack of funding");
         players[msg.sender].funds -= 2 ether;
         players[msg.sender].tickets++;
         playerTickets++;
@@ -61,7 +61,7 @@ contract scratchOff {
         playerFunds -= 2 ether;
         playerTickets--;
         players[msg.sender].tickets--;
-        if(oracleNumber(_num) % 2 == 0){
+        if(oracleNumber(_num) % 2 == 0) {
             players[msg.sender].funds += 3 ether;
             playerFunds += 3 ether;
             lotteryFunds -= 3 ether;
@@ -75,7 +75,7 @@ contract scratchOff {
             require(success, "Not paid");
             playerFunds -= address(this).balance;
             players[msg.sender].funds -= address(this).balance;
-        //pay the player their balance (later add gas fee)
+        //pay the player their balance
         } else {
             (bool success,) = msg.sender.call{value: players[msg.sender].funds}("");
             require(success, "Not paid");
@@ -159,5 +159,4 @@ contract scratchOff {
     function oracleNumber(int _num) private pure returns(int){ //add oracle function here
         return _num;
     }
-
 }
