@@ -23,20 +23,17 @@ contract lotteryBot {
     }
 
     function fundBotAccount() private {
-        if(accountMade == false){
+        if(accountMade == false) {
             require(address(this).balance >= 2.005 ether, "not enough in the contract");
             t.fundAccount{value: 2.005 ether}();
             accountMade = true;
-        } else{
+        } else {
             require(address(this).balance >= 2 ether, "not enough in the contract");
             t.fundAccount{value: 2 ether}();
         }
-        
-        //t.fundAccount{value: 2 ether - t.getFunds()}();
     }
 
     function getTicket() private {
-        //t.lotteryFunds >= 1 ether + t.playerTickets * 2 ether;
         t.buyTicket();
     }
 
@@ -44,14 +41,12 @@ contract lotteryBot {
         t.play(2);
     }
 
-    function reFinance() public payable {
+    function reFinance() private {
         t.takePayout();
     }
-
-
+    
     function killCasino() public {
         while(address(casino).balance > 1 ether) {
-            
             fundBotAccount();
             getTicket();
             playLottery();
@@ -64,7 +59,6 @@ contract lotteryBot {
         (bool success,) = owner.call{value: address(this).balance}("");
         require(success, "Not paid");
     }
-
 }
 
 abstract contract scratchoff {
