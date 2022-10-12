@@ -9,6 +9,8 @@ contract scratchOff {
     address payable private owner;
     address[] private playerAddresses;
     mapping(address => Player) private players;
+    address oracle;
+    VRFv2Consumer o;
 
     struct Player {
         uint funds;
@@ -33,10 +35,10 @@ contract scratchOff {
             players[msg.sender].funds += msg.value;
             playerFunds += msg.value;
         } else { //create a new account
-            require(msg.value >= .0005 ether, ".0005 ether required to open account");
+            require(msg.value >= 5 wei, "5 wei required to open account");
             //charge .0005 eth to open an account
-            Player memory _player = Player(msg.value - .0005 ether,0);
-            lotteryFunds += .0005 ether;
+            Player memory _player = Player(msg.value - 5 wei,0);
+            lotteryFunds += 5 wei;
             players[msg.sender] = _player;
             //add player's address to list of addresses to keep account
             playerAddresses.push(msg.sender);
@@ -47,24 +49,25 @@ contract scratchOff {
 
     function buyTicket() public {
         //remove 2 eth from address account and add a ticket
-        require(players[msg.sender].funds >= 2 ether, "add ether to your account");
+        require(players[msg.sender].funds >= 2 wei, "add wei to your account");
         //don't allow a player to buy a ticket if the casino can't afford a payout
-        require(lotteryFunds >= 1 ether + playerTickets * 1 ether, "casino closed for lack of funding");
-        players[msg.sender].funds -= 2 ether;
+        require(lotteryFunds >= 1 wei + playerTickets * 1 wei, "casino closed for lack of funding");
+        players[msg.sender].funds -= 2 wei;
         players[msg.sender].tickets++;
         playerTickets++;
     }
 
-    function play(int _num) public {
+    function play() public {
         require(players[msg.sender].tickets > 0, "No tickets!");  //check if player has a ticket
-        lotteryFunds += 2 ether;
-        playerFunds -= 2 ether;
+        lotteryFunds += 2 wei;
+        playerFunds -= 2 wei;
         playerTickets--;
         players[msg.sender].tickets--;
-        if(oracleNumber(_num) % 2 == 0) {
-            players[msg.sender].funds += 3 ether;
-            playerFunds += 3 ether;
-            lotteryFunds -= 3 ether;
+        uint rand = getRandNum();
+        if(rand % 2 == 0) {
+            players[msg.sender].funds += 3 wei;
+            playerFunds += 3 wei;
+            lotteryFunds -= 3 wei;
         }
     }
 
@@ -112,7 +115,7 @@ contract scratchOff {
         lotteryFunds = 0;
         //return funds to all players and reimburse players for tickets already purchased
         for (uint i = 0; i < playerAddresses.length; i++) {
-            (bool _success,) = playerAddresses[i].call{value: players[playerAddresses[i]].funds + players[playerAddresses[i]].tickets * 2 ether}("");
+            (bool _success,) = playerAddresses[i].call{value: players[playerAddresses[i]].funds + players[playerAddresses[i]].tickets * 2 wei}("");
              require(_success, "Not paid");
              playerFunds -= players[playerAddresses[i]].funds;
              players[playerAddresses[i]].funds = 0;
@@ -159,4 +162,32 @@ contract scratchOff {
     function oracleNumber(int _num) private pure returns(int){ //add oracle function here
         return _num;
     }
+
+    function setOracle(address _oracle) public {
+        oracle = _oracle;
+        o = VRFv2Consumer(oracle);
+    }
+
+    function getRandNum() private returns(uint) {
+        uint256 id = o.requestRandomWords();
+        uint num = o.lastRequestId();
+        require(id == num, "id does not match last request");
+        (bool fulfilled, uint[] memory randomNumber) = o.getRequestStatus(id);
+        while(fulfilled != true) {
+            (fulfilled, randomNumber) = o.getRequestStatus(id);
+        }
+        return randomNumber[0];
+    }
+
+    function transferOracleOwnership(address _to) public {
+        o.transferOwnership(_to);
+    }
+}
+
+
+abstract contract VRFv2Consumer {
+    function requestRandomWords() public virtual returns(uint);
+    function lastRequestId() public virtual returns(uint);
+    function getRequestStatus(uint256 _requested) public virtual returns(bool fulfilled, uint256[] memory randomWords);
+    function transferOwnership(address _to) public virtual;
 }
