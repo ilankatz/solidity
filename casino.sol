@@ -9,7 +9,7 @@ contract scratchOff is VRFConsumerBaseV2{
     uint private lotteryFunds;
     uint private playerFunds;
     uint private playerTickets;
-    uint public oracleValue;
+    uint private oracleValue;
     bool public randNumFulfilled;
     address payable private owner;
     address[] private playerAddresses;
