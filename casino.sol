@@ -1,29 +1,93 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.0;
+import '@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol';
+import '@chainlink/contracts/src/v0.8/VRFConsumerBaseV2.sol';
+import '@chainlink/contracts/src/v0.8/ConfirmedOwner.sol';
 
-contract scratchOff {
 
+contract scratchOff is VRFConsumerBaseV2{
     uint private lotteryFunds;
     uint private playerFunds;
     uint private playerTickets;
+    uint public oracleValue;
+    bool public randNumFulfilled;
     address payable private owner;
     address[] private playerAddresses;
     mapping(address => Player) private players;
-    address oracle;
-    VRFv2Consumer o;
+    bool fulfilled;
+    uint[] randomNumber;
+    uint requestStatusId;
+
 
     struct Player {
         uint funds;
         uint tickets;
     }
- 
+    struct RequestStatus {
+        bool fulfilled; // whether the request has been successfully fulfilled
+        bool exists; // whether a requestId exists
+        uint256[] randomWords;
+    }
+    mapping(uint256 => RequestStatus) public s_requests; /* requestId --> requestStatus */
+    VRFCoordinatorV2Interface COORDINATOR;
 
-    constructor(){
+    uint64 s_subscriptionId;
+
+    uint256[] public requestIds;
+    uint256 public lastRequestId;
+
+    // The gas lane to use, which specifies the maximum gas price to bump to.
+    bytes32 keyHash = 0x79d3d8832d904592c0bf9818b621522c988bb8b0c05cdc3b15aea1b6e8db0c15;
+
+    uint32 callbackGasLimit = 100000;
+
+    uint16 requestConfirmations = 3;
+
+    uint32 numWords = 1;
+
+    /**
+     * HARDCODED FOR GOERLI
+     * COORDINATOR: 0x2Ca8E0C643bDe4C2E08ab1fA0da3401AdAD7734D
+     */
+
+    function requestRandomWords() private returns (uint256 requestId) {
+        // Will revert if subscription is not set and funded.
+        requestId = COORDINATOR.requestRandomWords(
+            keyHash,
+            s_subscriptionId,
+            requestConfirmations,
+            callbackGasLimit,
+            numWords
+        );
+        s_requests[requestId] = RequestStatus({randomWords: new uint256[](0), exists: true, fulfilled: false});
+        requestIds.push(requestId);
+        lastRequestId = requestId;
+        return requestId;
+    }
+
+    function fulfillRandomWords(uint256 _requestId, uint256[] memory _randomWords) internal override {
+        require(s_requests[_requestId].exists, 'request not found');
+        s_requests[_requestId].fulfilled = true;
+        s_requests[_requestId].randomWords = _randomWords;
+    }
+
+    function getRequestStatus(uint256 _requestId) private view returns (bool done, uint256[] memory randWords) {
+        require(s_requests[_requestId].exists, 'request not found');
+        RequestStatus memory request = s_requests[_requestId];
+        return (request.fulfilled, request.randomWords);
+    }
+        constructor(uint64 subscriptionId)
+        VRFConsumerBaseV2(0x2Ca8E0C643bDe4C2E08ab1fA0da3401AdAD7734D)
+    {
+        COORDINATOR = VRFCoordinatorV2Interface(0x2Ca8E0C643bDe4C2E08ab1fA0da3401AdAD7734D);
+        s_subscriptionId = subscriptionId;
         lotteryFunds = address(this).balance;
         owner = payable(msg.sender);
         playerFunds = 0;
         playerTickets = 0;
+        oracleValue = 0;
         lotteryFunds = 0;
+        randNumFulfilled = true;
     }
 
     receive() external payable{}
@@ -59,16 +123,23 @@ contract scratchOff {
 
     function play() public {
         require(players[msg.sender].tickets > 0, "No tickets!");  //check if player has a ticket
-        lotteryFunds += 2 wei;
-        playerFunds -= 2 wei;
-        playerTickets--;
-        players[msg.sender].tickets--;
-        uint rand = getRandNum();
-        if(rand % 2 == 0) {
-            players[msg.sender].funds += 3 wei;
-            playerFunds += 3 wei;
-            lotteryFunds -= 3 wei;
+        require(randNumFulfilled == true, "please call pushRandomNum()");
+        if(oracleValue < 10) {
+            randNumFulfilled = false;
+            getRandNum();
+        } else{
+            lotteryFunds += 2 wei;
+            playerFunds -= 2 wei;
+            playerTickets--;
+            players[msg.sender].tickets--;
+            if(oracleValue % 2 == 0) {
+                players[msg.sender].funds += 3 wei;
+                playerFunds += 3 wei;
+                lotteryFunds -= 3 wei;
+            }
+            oracleValue = oracleValue/10;
         }
+        
     }
 
     function takePayout() public {
@@ -151,43 +222,36 @@ contract scratchOff {
 
     function getLotteryFunds() public view returns(uint){
         require(msg.sender == owner, "only owner can view that");
-        return lotteryFunds/10**14;
+        return lotteryFunds;
     }
 
     function getPlayerfunds() public view returns(uint){
         require(msg.sender == owner, "only owner can view that");
-        return playerFunds/10**14;
+        return playerFunds;
     }
 
-    function oracleNumber(int _num) private pure returns(int){ //add oracle function here
-        return _num;
+
+    function randNumGetter() public view returns(uint) {
+        require(msg.sender == owner);
+        return oracleValue;
     }
 
-    function setOracle(address _oracle) public {
-        oracle = _oracle;
-        o = VRFv2Consumer(oracle);
+
+    function getRandNum() private {
+        requestStatusId = requestRandomWords();
+        uint num = lastRequestId;
+        require(requestStatusId == num, "id does not match last request");
+        (fulfilled, randomNumber) = getRequestStatus(requestStatusId);
     }
 
-    function getRandNum() private returns(uint) {
-        uint256 id = o.requestRandomWords();
-        uint num = o.lastRequestId();
-        require(id == num, "id does not match last request");
-        (bool fulfilled, uint[] memory randomNumber) = o.getRequestStatus(id);
-        while(fulfilled != true) {
-            (fulfilled, randomNumber) = o.getRequestStatus(id);
+    function pushRandomNum() public returns(bool) {
+        (fulfilled, randomNumber) = getRequestStatus(requestStatusId);
+        if(fulfilled == true){
+            oracleValue = randomNumber[0];
+            randNumFulfilled = true;
+            return true;
         }
-        return randomNumber[0];
+        return false;
+        
     }
-
-    function transferOracleOwnership(address _to) public {
-        o.transferOwnership(_to);
-    }
-}
-
-
-abstract contract VRFv2Consumer {
-    function requestRandomWords() public virtual returns(uint);
-    function lastRequestId() public virtual returns(uint);
-    function getRequestStatus(uint256 _requested) public virtual returns(bool fulfilled, uint256[] memory randomWords);
-    function transferOwnership(address _to) public virtual;
 }
